@@ -27,7 +27,17 @@ class CloudFormationObject(object):
     
     def to_json(self):
         """Return the JSON equivalent"""
-        return {self.name: self.data}
+        def convert(obj):
+            return obj.to_json() if isinstance(obj, CloudFormationObject) else obj
+        
+        if isinstance(self.data, dict):
+            data = {key: convert(value) for key, value in six.iteritems(self.data)}
+        elif isinstance(self.data, list):
+            data = [convert(value) for value in self.data]
+        else:
+            data = self.data
+        
+        return {self.name: data}
     
     @classmethod
     def construct(cls, loader, node):
@@ -65,11 +75,14 @@ class CloudFormationObject(object):
     
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, repr(self.data))
+    
+    def __eq__(self, other):
+        return isinstance(other, self.__class__) and other.data == self.data
 
 class JSONFromYAMLEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, CloudFormationObject):
-            o = o.to_json()
+            return o.to_json()
         return json.JSONEncoder.default(self, o)
 
 # (name, tag, type)
@@ -94,11 +107,11 @@ functions = [
     ('Fn::Sub',         'Sub',         CloudFormationObject.SEQUENCE_OR_SCALAR),
 ]
 
-_objects = None
+_object_classes = None
 
 def init(safe=False):
-    global _objects
-    _objects = []
+    global _object_classes
+    _object_classes = []
     for name_, tag_, type_ in itertools.chain(functions, [ref]):
         if not tag_.startswith('!'):
             tag_ = '!{}'.format(tag_)
@@ -108,13 +121,13 @@ def init(safe=False):
             name = name_
             tag = tag_
             type = type_
-        obj_name = re.search(r'\w+$', tag_).group(0)
-        if not six.PY3:
-            obj_name = str(obj_name)
-        Object.__name__ = obj_name
+        obj_cls_name = re.search(r'\w+$', tag_).group(0)
+        if six.PY2:
+            obj_cls_name = str(obj_cls_name)
+        Object.__name__ = obj_cls_name
         
-        _objects.append(Object)
-        globals()[obj_name] = Object
+        _object_classes.append(Object)
+        globals()[obj_cls_name] = Object
         
         yaml.add_constructor(tag_, Object.construct)
         yaml.add_representer(Object, Object.represent)
@@ -123,8 +136,8 @@ def init(safe=False):
         mark_safe()
 
 def mark_safe():
-    for obj in _objects:
-        yaml.add_constructor(obj.tag, obj.construct, Loader=yaml.SafeLoader)
-        yaml.add_representer(obj.tag, obj.represent, Dumper=yaml.SafeDumper)
+    for obj_cls in _object_classes:
+        yaml.add_constructor(obj_cls.tag, obj_cls.construct, Loader=yaml.SafeLoader)
+        yaml.add_representer(obj_cls, obj_cls.represent, Dumper=yaml.SafeDumper)
         
 init()
