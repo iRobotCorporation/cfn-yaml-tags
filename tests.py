@@ -7,8 +7,6 @@ import yaml
 
 import cfn_yaml_tags
 
-
-
 class CfnYamlTagTest(unittest.TestCase):
     def setUp(self):
         for module in [yaml.representer, yaml.dumper, yaml.constructor, yaml.loader, yaml]:
