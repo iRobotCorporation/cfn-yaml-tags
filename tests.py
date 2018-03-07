@@ -22,7 +22,8 @@ Base64Test: !Base64 abc
 ConditionTest: !Condition MyCondition
 EqualsTest: !Equals [Value1, Value2]
 FindInMapTest: !FindInMap [MapName, TopLevelKey, SecondLevelKey]
-GetAttTest: !GetAtt [ResourceName, AttName]
+GetAttListTest: !GetAtt [ResourceName, AttName]
+GetAttStringTest: !GetAtt ResourceName.AttName
 IfTest: !If
 - Condition
 - ValueIfTrue
@@ -62,7 +63,8 @@ NestedTest: !If
             'ConditionTest': cfn_yaml_tags.Condition('MyCondition'),
             'EqualsTest': cfn_yaml_tags.Equals(['Value1', 'Value2']),
             'FindInMapTest': cfn_yaml_tags.FindInMap(['MapName', 'TopLevelKey', 'SecondLevelKey']),
-            'GetAttTest': cfn_yaml_tags.GetAtt(['ResourceName', 'AttName']),
+            'GetAttListTest': cfn_yaml_tags.GetAtt(['ResourceName', 'AttName']),
+            'GetAttStringTest': cfn_yaml_tags.GetAtt('ResourceName.AttName'),
             'IfTest': cfn_yaml_tags.If(['Condition', 'ValueIfTrue', 'ValueIfFalse']),
             'ImportValueTest': cfn_yaml_tags.ImportValue('ImportName'),
             'JoinTest': cfn_yaml_tags.Join([' ', ['hello', 'world']]),
@@ -103,6 +105,16 @@ NestedTest: !If
     def test_json(self):
         json.JSONEncoder().encode({'Fn::ImportValue': 'ImportName'})
         dumped = cfn_yaml_tags.JSONFromYAMLEncoder().encode(self.obj)
+        json_obj = json.loads(dumped)
+        self.assertEqual(json_obj['GetAttListTest']['Fn::GetAtt'],   ['ResourceName', 'AttName'])
+        self.assertEqual(json_obj['GetAttStringTest']['Fn::GetAtt'], ['ResourceName', 'AttName'])
+        
+        ref_obj = {'RefTest': cfn_yaml_tags.Ref('ResourceName.AttName')}
+        dumped = cfn_yaml_tags.JSONFromYAMLEncoder().encode(ref_obj)
+        json_obj = json.loads(dumped)
+        self.assertIn('Fn::GetAtt', json_obj['RefTest'])
+        self.assertNotIn('Ref', json_obj['RefTest'])
+        self.assertEqual(json_obj['RefTest']['Fn::GetAtt'],   ['ResourceName', 'AttName'])
     
     def test_safe_load_fail(self):
         with self.assertRaises(yaml.constructor.ConstructorError):

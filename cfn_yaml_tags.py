@@ -17,7 +17,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
 import six
 import itertools
@@ -48,12 +48,20 @@ class CloudFormationObject(object):
         
         if isinstance(self.data, dict):
             data = {key: convert(value) for key, value in six.iteritems(self.data)}
-        elif isinstance(self.data, list):
+        elif isinstance(self.data, (list, tuple)):
             data = [convert(value) for value in self.data]
         else:
             data = self.data
         
-        return {self.name: data}
+        name = self.name
+        
+        if name == 'Fn::GetAtt' and isinstance(data, six.string_types):
+            data = data.split('.')
+        elif name == 'Ref' and '.' in data:
+            name = 'Fn::GetAtt'
+            data = data.split('.')
+        
+        return {name: data}
     
     @classmethod
     def construct(cls, loader, node):
@@ -111,7 +119,7 @@ functions = [
     ('Fn::Base64',      'Base64',      CloudFormationObject.SCALAR),
     ('Fn::Equals',      'Equals',      CloudFormationObject.SEQUENCE),
     ('Fn::FindInMap',   'FindInMap',   CloudFormationObject.SEQUENCE),
-    ('Fn::GetAtt',      'GetAtt',      CloudFormationObject.SEQUENCE),
+    ('Fn::GetAtt',      'GetAtt',      CloudFormationObject.SEQUENCE_OR_SCALAR),
     ('Fn::GetAZs',      'GetAZs',      CloudFormationObject.SCALAR),
     ('Fn::If',          'If',          CloudFormationObject.SEQUENCE),
     ('Fn::ImportValue', 'ImportValue', CloudFormationObject.SCALAR),
